@@ -1,5 +1,5 @@
 # RAG_with_Langchain.py
-
+import os
 import pandas as pd
 from datasets import load_dataset
 from langchain_community.embeddings import OpenAIEmbeddings
@@ -11,12 +11,14 @@ from openai import OpenAI
 import numpy as np
 from dotenv import load_dotenv
 
+dotenv_path = '.env'
 
-load_dotenv()
+load_dotenv(dotenv_path)
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
 # 1. Load and preprocess SQuAD dataset
 dataset = load_dataset('squad')
-validation_data = dataset['validation'].select(range(100))
+validation_data = dataset['validation'].select(range(50))
 
 # Create DataFrame
 data = {
@@ -37,8 +39,8 @@ df = pd.DataFrame(data)
 
 # 2. Create text chunks
 text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=128,
-    chunk_overlap=64
+    chunk_size=1024,
+    chunk_overlap=512
 )
 
 contexts = list(set(df['context'].tolist()))  # Remove duplicates
@@ -50,15 +52,17 @@ vector_store = FAISS.from_documents(texts, embeddings)
 
 # 4. Create retrieval chain
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
+
+
 qa_chain = RetrievalQA.from_chain_type(
     llm=llm,
     chain_type="stuff",
-    retriever=vector_store.as_retriever(search_kwargs={"k": 1})
+    retriever= vector_store.as_retriever(search_kwargs={"k": 5})
 )
 
 # 5. Evaluation function
 def evaluate_answer(question, true_answer, predicted_answer):
-    client = OpenAI()
+    client = OpenAI(api_key=OPENAI_API_KEY)
     
     response = client.chat.completions.create(
         model='gpt-3.5-turbo',
